@@ -190,3 +190,51 @@ function updateUser(int $id, array $data): array
     $con->close();
     return apiResult("error", $duplicate ? "El username o el correo ya está registrado" : "Error al actualizar el usuario", null, $duplicate ? 409 : 500);
 }
+
+
+
+// DELETE /api.php?resource=users&id=1
+function deleteUser(int $id): array
+{
+    if ($id <= 0) {
+        return apiResult("error", "id es obligatorio en la URL", null, 400);
+    }
+
+    $con = connection();
+    $check = $con->prepare("SELECT id FROM users WHERE id = ?");
+    $check->bind_param("i", $id);
+    $check->execute();
+    $exists = $check->get_result()->num_rows > 0;
+    $check->close();
+
+    if (!$exists) {
+        $con->close();
+        return apiResult("error", "Usuario no encontrado", null, 404);
+    }
+
+    $countStmt = $con->prepare("SELECT COUNT(*) AS total FROM products WHERE user_id = ?");
+    $countStmt->bind_param("i", $id);
+    $countStmt->execute();
+    $count = (int)$countStmt->get_result()->fetch_assoc()["total"];
+    $countStmt->close();
+
+    if ($count > 0) {
+        $con->close();
+        return apiResult(
+            "error",
+            "No se puede eliminar el usuario: primero elimina sus productos",
+            ["products_remaining" => $count],
+            409
+        );
+    }
+
+    $stmt = $con->prepare("DELETE FROM users WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $ok = $stmt->execute();
+    $stmt->close();
+    $con->close();
+
+    return $ok
+        ? apiResult("success", "Usuario eliminado correctamente")
+        : apiResult("error", "Error al eliminar el usuario", null, 500);
+}
