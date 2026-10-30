@@ -50,3 +50,45 @@ function getProductsForUser(mysqli $con, int $userId): array
     $stmt->close();
     return $products;
 }
+
+// GET /api.php?resource=users
+// GET /api.php?resource=users&id=1
+function getUsers(?int $id = null): array
+{
+    $con = connection();
+
+    if ($id !== null) {
+        $stmt = $con->prepare(
+            "SELECT id, name, lastname, username, email FROM users WHERE id = ?"
+        );
+        $stmt->bind_param("i", $id);
+        $stmt->execute();
+        $query = $stmt->get_result();
+        $row = $query->fetch_assoc();
+        $stmt->close();
+
+        if (!$row) {
+            $con->close();
+            return apiResult("error", "Usuario no encontrado", null, 404);
+        }
+
+        $user = publicUser($row);
+        $user["products"] = getProductsForUser($con, $id);
+        $con->close();
+        return apiResult("success", "Usuario consultado correctamente", $user);
+    }
+
+    $query = $con->query(
+        "SELECT id, name, lastname, username, email FROM users ORDER BY id"
+    );
+    $users = [];
+
+    while ($row = $query->fetch_assoc()) {
+        $user = publicUser($row);
+        $user["products"] = getProductsForUser($con, (int)$row["id"]);
+        $users[] = $user;
+    }
+
+    $con->close();
+    return apiResult("success", "Usuarios consultados correctamente", $users);
+}
