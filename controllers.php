@@ -371,3 +371,25 @@ function updateProduct(int $id, array $data): array
         ? apiResult("success", "Producto actualizado correctamente")
         : apiResult("error", "Error al actualizar el producto", null, 500);
 }
+
+
+// DELETE /api.php?resource=products&id=1
+function deleteProduct(int $id): array
+{
+    if ($id <= 0) {
+        return apiResult("error", "id es obligatorio en la URL", null, 400);
+    }
+
+    $con = connection();
+    $stmt = $con->prepare("DELETE FROM products WHERE id = ?");
+    $stmt->bind_param("i", $id);
+    $stmt->execute();
+    $deleted = $stmt->affected_rows;
+    $stmt->close();
+    $con->close();
+
+    if ($deleted === 0) {
+        return apiResult("error", "Producto no encontrado", null, 404);
+    }
+    return apiResult("success", "Producto eliminado correctamente");
+}
