@@ -319,3 +319,55 @@ function registerProduct(array $data): array
     $con->close();
     return apiResult("error", "Error al registrar el producto", null, 500);
 }
+
+
+// PUT /api.php?resource=products&id=1
+function updateProduct(int $id, array $data): array
+{
+    $userId = filter_var($data["user_id"] ?? null, FILTER_VALIDATE_INT);
+    $name = trim($data["name"] ?? "");
+    $description = trim($data["description"] ?? "");
+    $price = $data["price"] ?? null;
+    $stock = filter_var($data["stock"] ?? null, FILTER_VALIDATE_INT);
+
+    if ($id <= 0 || !$userId || $name === "" || !is_numeric($price) || $stock === false || $stock === null) {
+        return apiResult("error", "id en la URL, user_id, name, price numérico y stock entero son obligatorios", null, 400);
+    }
+    if ((float)$price < 0 || $stock < 0) {
+        return apiResult("error", "price y stock deben ser mayores o iguales a cero", null, 400);
+    }
+
+    $con = connection();
+    $check = $con->prepare("SELECT id FROM products WHERE id = ?");
+    $check->bind_param("i", $id);
+    $check->execute();
+    $exists = $check->get_result()->num_rows > 0;
+    $check->close();
+    if (!$exists) {
+        $con->close();
+        return apiResult("error", "Producto no encontrado", null, 404);
+    }
+
+    $checkUser = $con->prepare("SELECT id FROM users WHERE id = ?");
+    $checkUser->bind_param("i", $userId);
+    $checkUser->execute();
+    $userExists = $checkUser->get_result()->num_rows > 0;
+    $checkUser->close();
+    if (!$userExists) {
+        $con->close();
+        return apiResult("error", "El usuario indicado no existe", null, 404);
+    }
+
+    $price = (float)$price;
+    $stmt = $con->prepare(
+        "UPDATE products SET user_id = ?, name = ?, description = ?, price = ?, stock = ? WHERE id = ?"
+    );
+    $stmt->bind_param("issdii", $userId, $name, $description, $price, $stock, $id);
+    $ok = $stmt->execute();
+    $stmt->close();
+    $con->close();
+
+    return $ok
+        ? apiResult("success", "Producto actualizado correctamente")
+        : apiResult("error", "Error al actualizar el producto", null, 500);
+}
