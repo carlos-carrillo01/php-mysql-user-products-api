@@ -92,3 +92,45 @@ function getUsers(?int $id = null): array
     $con->close();
     return apiResult("success", "Usuarios consultados correctamente", $users);
 }
+
+// POST /api.php?resource=users
+function registerUser(array $data): array
+{
+    $name = trim($data["name"] ?? "");
+    $lastname = trim($data["lastname"] ?? "");
+    $username = trim($data["username"] ?? "");
+    $email = trim($data["email"] ?? "");
+    $password = $data["password"] ?? "";
+
+    if ($name === "" || $lastname === "" || $username === "" || $email === "" || $password === "") {
+        return apiResult("error", "name, lastname, username, email y password son obligatorios", null, 400);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return apiResult("error", "El correo electrónico no tiene un formato válido", null, 400);
+    }
+
+    $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+    $con = connection();
+    $stmt = $con->prepare(
+        "INSERT INTO users (name, lastname, username, email, password)
+        VALUES (?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param("sssss", $name, $lastname, $username, $email, $passwordHash);
+
+    if ($stmt->execute()) {
+        $id = (int)$con->insert_id;
+        $stmt->close();
+        $con->close();
+        return apiResult("success", "Usuario registrado correctamente", ["id" => $id], 201);
+    }
+
+    $duplicate = $stmt->errno === 1062;
+    $stmt->close();
+    $con->close();
+    return apiResult(
+        "error",
+        $duplicate ? "El username o el correo ya está registrado" : "Error al registrar el usuario",
+        null,
+        $duplicate ? 409 : 500
+    );
+}
