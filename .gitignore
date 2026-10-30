@@ -1,0 +1,19 @@
+# Dependencias / vendor
+/vendor/
+node_modules/
+
+# Configuración local
+.env
+connection.local.php
+
+# Logs
+*.log
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Editores
+.vscode/
+.idea/
+*.swp
