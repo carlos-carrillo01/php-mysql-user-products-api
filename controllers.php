@@ -273,3 +273,49 @@ function getProducts(?int $userId = null): array
     $con->close();
     return apiResult("success", "Productos consultados correctamente", $products);
 }
+
+
+// POST /api.php?resource=products
+function registerProduct(array $data): array
+{
+    $userId = filter_var($data["user_id"] ?? null, FILTER_VALIDATE_INT);
+    $name = trim($data["name"] ?? "");
+    $description = trim($data["description"] ?? "");
+    $price = $data["price"] ?? null;
+    $stock = filter_var($data["stock"] ?? null, FILTER_VALIDATE_INT);
+
+    if (!$userId || $name === "" || !is_numeric($price) || $stock === false || $stock === null) {
+        return apiResult("error", "user_id, name, price numérico y stock entero son obligatorios", null, 400);
+    }
+    if ((float)$price < 0 || $stock < 0) {
+        return apiResult("error", "price y stock deben ser mayores o iguales a cero", null, 400);
+    }
+
+    $con = connection();
+    $check = $con->prepare("SELECT id FROM users WHERE id = ?");
+    $check->bind_param("i", $userId);
+    $check->execute();
+    $exists = $check->get_result()->num_rows > 0;
+    $check->close();
+    if (!$exists) {
+        $con->close();
+        return apiResult("error", "El usuario indicado no existe", null, 404);
+    }
+
+    $price = (float)$price;
+    $stmt = $con->prepare(
+        "INSERT INTO products (user_id, name, description, price, stock) VALUES (?, ?, ?, ?, ?)"
+    );
+    $stmt->bind_param("issdi", $userId, $name, $description, $price, $stock);
+
+    if ($stmt->execute()) {
+        $id = (int)$con->insert_id;
+        $stmt->close();
+        $con->close();
+        return apiResult("success", "Producto registrado correctamente", ["id" => $id], 201);
+    }
+
+    $stmt->close();
+    $con->close();
+    return apiResult("error", "Error al registrar el producto", null, 500);
+}
