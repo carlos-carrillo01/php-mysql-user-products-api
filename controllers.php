@@ -134,3 +134,59 @@ function registerUser(array $data): array
         $duplicate ? 409 : 500
     );
 }
+
+
+
+// PUT /api.php?resource=users&id=1
+// Actualiza los datos indicados. password es opcional.
+function updateUser(int $id, array $data): array
+{
+    $name = trim($data["name"] ?? "");
+    $lastname = trim($data["lastname"] ?? "");
+    $username = trim($data["username"] ?? "");
+    $email = trim($data["email"] ?? "");
+
+    if ($id <= 0 || $name === "" || $lastname === "" || $username === "" || $email === "") {
+        return apiResult("error", "id en la URL y name, lastname, username y email son obligatorios", null, 400);
+    }
+    if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        return apiResult("error", "El correo electrónico no tiene un formato válido", null, 400);
+    }
+
+    $con = connection();
+    $check = $con->prepare("SELECT id FROM users WHERE id = ?");
+    $check->bind_param("i", $id);
+    $check->execute();
+    $exists = $check->get_result()->num_rows > 0;
+    $check->close();
+
+    if (!$exists) {
+        $con->close();
+        return apiResult("error", "Usuario no encontrado", null, 404);
+    }
+
+    $password = $data["password"] ?? "";
+    if ($password !== "") {
+        $passwordHash = password_hash($password, PASSWORD_DEFAULT);
+        $stmt = $con->prepare(
+            "UPDATE users SET name = ?, lastname = ?, username = ?, email = ?, password = ? WHERE id = ?"
+        );
+        $stmt->bind_param("sssssi", $name, $lastname, $username, $email, $passwordHash, $id);
+    } else {
+        $stmt = $con->prepare(
+            "UPDATE users SET name = ?, lastname = ?, username = ?, email = ? WHERE id = ?"
+        );
+        $stmt->bind_param("ssssi", $name, $lastname, $username, $email, $id);
+    }
+
+    if ($stmt->execute()) {
+        $stmt->close();
+        $con->close();
+        return apiResult("success", "Usuario actualizado correctamente");
+    }
+
+    $duplicate = $stmt->errno === 1062;
+    $stmt->close();
+    $con->close();
+    return apiResult("error", $duplicate ? "El username o el correo ya está registrado" : "Error al actualizar el usuario", null, $duplicate ? 409 : 500);
+}
