@@ -238,3 +238,38 @@ function deleteUser(int $id): array
         ? apiResult("success", "Usuario eliminado correctamente")
         : apiResult("error", "Error al eliminar el usuario", null, 500);
 }
+
+
+// GET /api.php?resource=products[&user_id=1]
+function getProducts(?int $userId = null): array
+{
+    $con = connection();
+
+    if ($userId !== null) {
+        $check = $con->prepare("SELECT id FROM users WHERE id = ?");
+        $check->bind_param("i", $userId);
+        $check->execute();
+        $exists = $check->get_result()->num_rows > 0;
+        $check->close();
+        if (!$exists) {
+            $con->close();
+            return apiResult("error", "Usuario no encontrado", null, 404);
+        }
+        $products = getProductsForUser($con, $userId);
+    } else {
+        $products = [];
+        $query = $con->query(
+            "SELECT id, user_id, name, description, price, stock, created_at FROM products ORDER BY id"
+        );
+        while ($row = $query->fetch_assoc()) {
+            $row["id"] = (int)$row["id"];
+            $row["user_id"] = (int)$row["user_id"];
+            $row["price"] = (float)$row["price"];
+            $row["stock"] = (int)$row["stock"];
+            $products[] = $row;
+        }
+    }
+
+    $con->close();
+    return apiResult("success", "Productos consultados correctamente", $products);
+}
